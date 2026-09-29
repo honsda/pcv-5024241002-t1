@@ -32,7 +32,7 @@ while True:
     bottom = np.hstack((f3, f4))
     combined = np.vstack((top, bottom))
 
-    cv2.imshow("4 Filters", combined)
+    cv2.imshow("video", combined)
 
     if cv2.waitKey(3) & 0xFF == ord('q'):
         break
