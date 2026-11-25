@@ -1,98 +1,144 @@
 # Tugas 1 - Introduction
 
-## Gambar
-Membuat filter warna untuk gambar (Original, R, G, B)
+Membaca citra, menampilkan citra, lalu menampilkan filter warna merah, hijau, dan biru untuk gambar dan video. Setiap hasil disimpan sebagai gambar terpisah dengan ukuran kecil. Pada video, keempat kanal ditampilkan di jendela masing-masing dan frame pertama disimpan sebagai gambar.
+
+## Kode
 
 ```python
+import os
+
 import cv2
 import numpy as np
 
-def original(img):
-    return img.copy()
+BASE = os.path.dirname(os.path.abspath(__file__))
+IMAGE_PATH = os.path.join(BASE, "crazy.jpeg")
+VIDEO_PATH = os.path.join(BASE, "drift.mp4")
 
-def red(img):
-    out = img.copy()
-    out[:, :, 0] = 0
-    out[:, :, 1] = 0
+CHANNELS = [("original", "Original"), ("red", "Red"),
+            ("green", "Green"), ("blue", "Blue")]
+
+
+def keep_channel(img, channel):
+    out = np.zeros_like(img)
+    if channel == "original":
+        out[:] = img
+    elif channel == "blue":
+        out[:, :, 0] = img[:, :, 0]
+    elif channel == "green":
+        out[:, :, 1] = img[:, :, 1]
+    elif channel == "red":
+        out[:, :, 2] = img[:, :, 2]
     return out
 
-def green(img):
-    out = img.copy()
-    out[:, :, 0] = 0
-    out[:, :, 2] = 0
-    return out
 
-def blue(img):
-    out = img.copy()
-    out[:, :, 1] = 0
-    out[:, :, 2] = 0
-    return out
+def to_display(img):
+    if img.ndim == 2:
+        return cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    return img
 
-filters = [original, red, green, blue]
 
-img = cv2.imread("t1/crazy.jpeg")
+def resize_width(img, width):
+    out = to_display(img)
+    h, w = out.shape[:2]
+    return cv2.resize(out, (width, int(width * h / w)),
+                      interpolation=cv2.INTER_AREA)
 
-tiles = [fn(img) for fn in filters]
 
-top = np.hstack(tiles[:2])
-bottom = np.hstack(tiles[2:])
-combined = np.vstack((top, bottom))
+def save_result(filename, img, width):
+    small = resize_width(img, width)
+    cv2.imwrite(os.path.join(BASE, filename), small)
+    return small
 
-h, w = combined.shape[:2]
-combined = cv2.resize(combined, (w // 2, h // 4))
 
-cv2.imshow("", combined)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+def show_result(title, filename, img, width=480):
+    small = save_result(filename, img, width)
+    cv2.imshow(title, small)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+
+def show_image():
+    img = cv2.imread(IMAGE_PATH)
+    if img is None:
+        raise FileNotFoundError(f"Gambar tidak ditemukan: {IMAGE_PATH}")
+
+    for channel, title in CHANNELS:
+        show_result(title, f"hasil-image-{channel}.png",
+                    keep_channel(img, channel), 480)
+
+
+def show_video():
+    cap = cv2.VideoCapture(VIDEO_PATH)
+    if not cap.isOpened():
+        raise FileNotFoundError(f"Video tidak ditemukan: {VIDEO_PATH}")
+
+    first_frame = True
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        for channel, title in CHANNELS:
+            small = resize_width(keep_channel(frame, channel), 240)
+            cv2.imshow(title, small)
+
+            if first_frame:
+                cv2.imwrite(os.path.join(BASE, f"hasil-video-{channel}.png"),
+                            small)
+
+        first_frame = False
+
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+def main():
+    show_image()
+    show_video()
+
+
+if __name__ == "__main__":
+    main()
 ```
 
-![Hasil](./hasil.png)
+## Hasil Filter Gambar
 
-## Video
-Membuat filter warna untuk video (Original, R, G, B)
+### Original
 
-```python
-import cv2
-import numpy as np
+![Original](./hasil-image-original.png)
 
-atha = cv2.VideoCapture("drift.mp4")
+### Red
 
-while True:
-    ret, frame = atha.read()
-    if not ret:
-        break
+![Red](./hasil-image-red.png)
 
-    f1 = frame.copy()
+### Green
 
-    f2 = frame.copy()
-    f2[:, :, 0] = 0 
-    f2[:, :, 1] = 0 
+![Green](./hasil-image-green.png)
 
-    f3 = frame.copy()
-    f3[:, :, 0] = 0 
-    f3[:, :, 2] = 0 
+### Blue
 
-    f4 = frame.copy()
-    f4[:, :, 1] = 0
-    f4[:, :, 2] = 0
+![Blue](./hasil-image-blue.png)
 
-    h, w = frame.shape[:2]
-    f1 = cv2.resize(f1, (w//4, h//4))
-    f2 = cv2.resize(f2, (w//4, h//4))
-    f3 = cv2.resize(f3, (w//4, h//4))
-    f4 = cv2.resize(f4, (w//4, h//4))
+## Hasil Filter Video
 
-    top    = np.hstack((f1, f2))
-    bottom = np.hstack((f3, f4))
-    combined = np.vstack((top, bottom))
+Frame pertama video setelah difilter per kanal. Tekan `q` untuk menghentikan video.
 
-    cv2.imshow("video", combined)
+### Original
 
-    if cv2.waitKey(3) & 0xFF == ord('q'):
-        break
+![Original](./hasil-video-original.png)
 
-atha.release()
-cv2.destroyAllWindows()
-```
+### Red
 
-![Hasil](./hasil.gif)
+![Red](./hasil-video-red.png)
+
+### Green
+
+![Green](./hasil-video-green.png)
+
+### Blue
+
+![Blue](./hasil-video-blue.png)
