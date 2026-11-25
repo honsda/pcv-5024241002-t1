@@ -5,14 +5,8 @@ Konversi model warna RGB ke CMYK, HSI, dan HSV beserta konversi baliknya. Semua 
 ## Kode
 
 ```python
-import os
-
 import cv2
 import numpy as np
-
-BASE = os.path.dirname(os.path.abspath(__file__))
-IMAGE_PATH = os.path.join(BASE, "crazy.png")
-
 
 def rgb_to_cmyk(rgb):
     r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
@@ -30,14 +24,12 @@ def rgb_to_cmyk(rgb):
     y[black] = 0.0
     return np.stack((c, m, y, k), axis=2)
 
-
 def cmyk_to_rgb(cmyk):
     c, m, y, k = (cmyk[:, :, i] for i in range(4))
     r = (1.0 - c) * (1.0 - k)
     g = (1.0 - m) * (1.0 - k)
     b = (1.0 - y) * (1.0 - k)
     return np.stack((r, g, b), axis=2)
-
 
 def rgb_to_hsi(rgb):
     r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
@@ -57,7 +49,6 @@ def rgb_to_hsi(rgb):
     hue = np.where(den > 0, hue, 0.0)
 
     return np.stack((hue / 360.0, saturation, intensity), axis=2)
-
 
 def hsi_to_bgr(h, s, i):
     hue = np.mod(h, 1.0) * 360.0
@@ -94,7 +85,6 @@ def hsi_to_bgr(h, s, i):
 
     return np.clip(np.stack((b, g, r), axis=2), 0.0, 1.0)
 
-
 def rgb_to_hsv(rgb):
     r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
     maxc = np.max(rgb, axis=2)
@@ -119,7 +109,6 @@ def rgb_to_hsv(rgb):
 
     return np.stack((hue / 360.0, saturation, value), axis=2)
 
-
 def hsv_to_bgr(h, s, v):
     h6 = np.mod(h, 1.0) * 6.0
     sector = np.floor(h6).astype(np.int32) % 6
@@ -139,103 +128,9 @@ def hsv_to_bgr(h, s, v):
                    sector == 3, sector == 4, sector == 5],
                   [p, p, t, v, v, q])
     return np.clip(np.stack((b, g, r), axis=2), 0.0, 1.0)
-
-
-def channel_to_bgr(channel):
-    gray = np.clip(channel * 255.0, 0, 255).astype(np.uint8)
-    return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-
-
-def rgb_float_to_bgr(rgb):
-    bgr = np.clip(rgb[:, :, ::-1] * 255.0, 0, 255).astype(np.uint8)
-    return np.ascontiguousarray(bgr)
-
-
-def bgr_float_to_uint8(bgr):
-    return np.clip(bgr * 255.0, 0, 255).astype(np.uint8)
-
-
-def resize_width(img, width):
-    h, w = img.shape[:2]
-    return cv2.resize(img, (width, int(width * h / w)),
-                      interpolation=cv2.INTER_AREA)
-
-
-def show_result(title, filename, img, width=420):
-    small = resize_width(img, width)
-    cv2.imwrite(os.path.join(BASE, filename), small)
-    cv2.imshow(title, small)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-
-def main():
-    bgr = cv2.imread(IMAGE_PATH)
-    if bgr is None:
-        raise FileNotFoundError(f"Gambar tidak ditemukan: {IMAGE_PATH}")
-
-    rgb = bgr[:, :, ::-1].astype(np.float32) / 255.0
-    original = bgr.copy()
-
-    cmyk = rgb_to_cmyk(rgb)
-    cmyk_back = cmyk_to_rgb(cmyk)
-    c, m, y, k = (cmyk[:, :, i] for i in range(4))
-
-    hsi = rgb_to_hsi(rgb)
-    hsi_back = hsi_to_bgr(hsi[:, :, 0], hsi[:, :, 1], hsi[:, :, 2])
-    h_hsi, s_hsi, i_hsi = (hsi[:, :, i] for i in range(3))
-
-    hsv = rgb_to_hsv(rgb)
-    hsv_back = hsv_to_bgr(hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2])
-    h_hsv, s_hsv, v_hsv = (hsv[:, :, i] for i in range(3))
-
-    hue_hsi_color = bgr_float_to_uint8(
-        hsi_to_bgr(h_hsi, np.ones_like(h_hsi), np.full_like(h_hsi, 0.5)))
-    hue_hsv_color = bgr_float_to_uint8(
-        hsv_to_bgr(h_hsv, np.ones_like(h_hsv), np.ones_like(h_hsv)))
-
-    yy, xx = np.unravel_index(np.argmax(hsv[:, :, 1]), hsv.shape[:2])
-    print("Contoh piksel (paling jenuh) pada (x=%d, y=%d):" % (xx, yy))
-    print("  RGB  :", np.round(rgb[yy, xx] * 255).astype(int))
-    print("  CMYK : C=%.3f M=%.3f Y=%.3f K=%.3f" %
-          (c[yy, xx], m[yy, xx], y[yy, xx], k[yy, xx]))
-    print("  HSI  : H=%.1f derajat S=%.3f I=%.3f" %
-          (h_hsi[yy, xx] * 360.0, s_hsi[yy, xx], i_hsi[yy, xx]))
-    print("  HSV  : H=%.1f derajat S=%.3f V=%.3f" %
-          (h_hsv[yy, xx] * 360.0, s_hsv[yy, xx], v_hsv[yy, xx]))
-
-    err_cmyk = np.abs(cmyk_back - rgb).mean() * 100.0
-    err_hsi = np.abs(hsi_back[:, :, ::-1] - rgb).mean() * 100.0
-    err_hsv = np.abs(hsv_back[:, :, ::-1] - rgb).mean() * 100.0
-    print("Rata-rata error konversi balik (%%): "
-          "CMYK=%.4f HSI=%.4f HSV=%.4f" % (err_cmyk, err_hsi, err_hsv))
-
-    show_result("CMYK - Original", "hasil-cmyk-original.png", original)
-    show_result("CMYK - Cyan", "hasil-cmyk-c.png", channel_to_bgr(c))
-    show_result("CMYK - Magenta", "hasil-cmyk-m.png", channel_to_bgr(m))
-    show_result("CMYK - Yellow", "hasil-cmyk-y.png", channel_to_bgr(y))
-    show_result("CMYK - Key / Black", "hasil-cmyk-k.png", channel_to_bgr(k))
-    show_result("CMYK -> RGB", "hasil-cmyk-rgb.png",
-                rgb_float_to_bgr(cmyk_back))
-
-    show_result("HSI - Original", "hasil-hsi-original.png", original)
-    show_result("HSI - Hue", "hasil-hsi-h.png", hue_hsi_color)
-    show_result("HSI - Saturation", "hasil-hsi-s.png", channel_to_bgr(s_hsi))
-    show_result("HSI - Intensity", "hasil-hsi-i.png", channel_to_bgr(i_hsi))
-    show_result("HSI -> RGB", "hasil-hsi-rgb.png",
-                bgr_float_to_uint8(hsi_back))
-
-    show_result("HSV - Original", "hasil-hsv-original.png", original)
-    show_result("HSV - Hue", "hasil-hsv-h.png", hue_hsv_color)
-    show_result("HSV - Saturation", "hasil-hsv-s.png", channel_to_bgr(s_hsv))
-    show_result("HSV - Value", "hasil-hsv-v.png", channel_to_bgr(v_hsv))
-    show_result("HSV -> RGB", "hasil-hsv-rgb.png",
-                bgr_float_to_uint8(hsv_back))
-
-
-if __name__ == "__main__":
-    main()
 ```
+
+Kode di atas hanya bagian pengolahan citra. Bagian pembacaan, penampilan, dan penyimpanan hasil beserta nama file output tidak ditampilkan. Kode lengkap ada di `4-model-warna.py`.
 
 ## CMYK
 
